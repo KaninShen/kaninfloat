@@ -1,0 +1,212 @@
+1. Overview
+
+1.1 Scope
+This standard specifies the storage format and mathematical behaviour of KaninFloat numbers.
+
+1.2 Purpose
+This standard provides a method for computations with real number in a computer using fixed-size binary values for simple hardware.
+
+1.3 Inclusions
+This standard specifies:
+- Binary format for KaninFloat, for computation and data interchange
+- Addition, subtraction, multiplication, division, fused multiply add, comparison, and other operations.
+- Conversion between integer and KaninFloat format.
+- Conversion between KaninFloat format with different precision.
+- Function behaviour when inputs or outputs value is NaN (Not a Number).
+
+1.4 Exclusion
+This standard does not specify:
+- specific names of the values and operations. Implementations may use alternative names and symbols for values and operations that match the behavior described here.
+- rules for how an implementation should handle and report errors. If a program attempts a computation on KaninFloat values outside the domain that produces a real-valued output or NaN, or compares the NaN value with a real number, behavior beyond the arithmetic result specified here (such as issuance of warnings) is up to the implementation designers.
+
+
+2. Definitions, abbreviations, and acronyms
+
+2.1 Definition
+
+basic format: One of five KaninFloat representations, whose encodings are specified by the standard, and which can be used for arithmetic. One or more of the basic formats is implemented in any conforming implementation
+bit field: A contiguous group of bits within the encoding of a KaninFloat value.
+exponent: The scale factor, represented as a power of two, of a KaninFloat value.
+exponent bits: The W-bit unsigned bit field in a KaninFloat that determines the exponent. 
+format: A set of bit fields and the definition of their meaning.
+fused: An arithmetic operation that combines two or more operations with only one rounding.
+KaninFloat value: A member of the set of values representable in a KaninFloat format: either NaN or a finite real number.
+mantissa: The value represented by the mantissa bits, within the range [-2, 2).
+mantissa bits: The P-bit unsigned bit field in a KaninFloat that determines the fractional part of the mantissa.
+normal number: In a particular format, a non-NaN non-zero KaninFloat number whose magnitude is greater than the magnitude of that format’s smallest normal number.
+precision: The total storage size for expressing any number format, in bits.
+sign: The value 1 for positive numbers and zero, -1 for negative numbers and NaN.
+sign bit: The MSB in a KaninFloat that determines its sign.
+subnormal number: In a particular format, a non-zero KaninFloat number whose magnitude is less than the magnitude of that format’s smallest normal number.
+
+2.2 Abbreviations and acronyms
+
+LSB: Least Significant Bit.
+MSB: Most Significant Bit.
+NaN: Not a Number.
+
+
+3.KaninFloat formats
+
+3.1 Format
+
+This section define KaninFloat format, which are used to represent a finite subset of real numbers or NaN. Formats are specified by there precision and exponent range.
+
+Specific fixed encodings of KaninFloat format are defined in the clause for a subset of the format. These *basic formats* are identified by their size.
+
+3.2 Represented data 
+
+A KaninFloat value is either NaN or a real number x of the form m*exp2(e), where e (exponent) is any integer E_min <= E <= E_max, m (mantissa) is a number represented by a signed binary string of the form b_s b_0.b_1 b_2 ... b_P, therefore -2.0 <= m < 2.0.
+
+The smallest positive normal KaninFloat value is exp2(E_min) and the largest is (2 - exp2(-P))*exp2(E_max). The non-zero KaninFloat values with magnitude less than exp2(E_min) are called subnormal because their magnitudes lie between zero and the smallest normal magnitude. Every finite KaninFloat value is an integral multiple of the smallest subnormal magnitude exp2(E_min-P). Every real number maps to a unique KaninFloat representation; there are no redundant representations.
+
+The properties of five basic formats and general format KaninFloat are summarized in Table 1.
+
+|Property|KaninFloat8|KaninFloat16|KaninFloat32|KaninFloat64|KaninFloat128|KaninFloat(W,P)|
+|       P|          4|          10|          22|          46|           94|              P|
+|       W|          3|           5|           9|          17|           33|              W|
+|   E_max|         +3|         +15|        +255|      +65535|  +exp2(32)-1|   +exp2(W-1)-1|
+|   E_min|         -3|         -15|        -255|      -65535|  -exp2(32)+1|   -exp2(W-1)+1|
+Table 1: Properties of KaninFloat formats
+
+3.3 KaninFloat format encodings
+
+Representations of KaninFloat values in KaninFloat formats are unique encoded in k bits in the following three fields as shown in Figure 1:
+a) 1-bit sign S
+2) W-bit exponent bits E = E_0 ... E_(W-1)
+3) P-bit mantissa bits M = M_1 ... M_P
+
+1bit|MSB  W bits LSB|MSB  P bits LSB|
+-------------------------------------
+| S |       E       |       M       |
+-------------------------------------
+Figure 1: Binary KaninFloat format
+
+The KaninFloat value k is inferred from the bit fields S, E and M as follow:
+a) if S = 0 and all bits of E and M are 0 bits, k = 0
+b) if S = 1 and all bits of E and M are 0 bits, k is NaN
+c) if S = 0 and E = 0 and M /= 0, k = (0 + M*exp2(-P))*exp2(E_min)
+d) if S = 1 and E = exp2(W) - 1 and M /= 0, k = (-1 + M*exp2(-P))*exp2(E_min)
+e) otherwise, k = (1 - 3*S + M*exp2(-P))*exp2((1 - 2*S)*(E - exp2(W-1) + S))
+
+
+4. Rounding 
+
+4.1 Definition and Method
+
+Rounding is the substitution of a KaninFloat value for any real number. Operation results are regarded as exact prior to rounding. The method for rounding a real value x is described by the following algorithm:
+the Non-NaN KaninFloat number nearest to the real number is delivered; if two nearest KaninFloat number are equally near, the one with an even least significant bit of mantissa is delivered. (If the exact result exceeds the maximum representable finite value, it rounds to the largest finite KaninFloat with the same sign.)
+
+
+5. Operations
+
+5.1 Overview
+
+All arithmetic operations defined in this clause produce an exact mathematical result, which is then rounded to the nearest representable KaninFloat value according to Section 4. 
+For mov, negate, abs, round, add, sub, mul and div If either input is NaN, the result is NaN.
+
+5.2 Basic function of One KaninFloat value argument
+
+mov(KaninFloat1) returns KaninFloat1.
+negate(KaninFloat1) returns -KaninFloat1.
+abs(KaninFloat1) returns negate(KaninFloat1) if KaninFloat1 < 0, else KaninFloat1.
+roundEven(KaninFloat1) returns the integer-valued KaninFloat near to KaninFloat1, and return the nearest even integer-valued KaninFloat value if two integer are equally near.
+roundNegative(KaninFloat1) returns the largest integer-valued KaninFloat value less than or equal to KaninFloat1.
+roundPositive(KaninFloat1) returns the smallest integer-valued KaninFloat value greater than or equal to KaninFloat1.
+roundZero(KaninFloat1) returns roundPositive(KaninFloat1) if KaninFloat1 < 0, else roundNegative(KaninFloat1).
+next(KaninFloat1) returns the KaninFloat value of the lexicographic successor of KaninFloat's representation, wrapping around if necessary.
+prior(KaninFloat) returns the KaninFloat value of the lexicographic predecessor of KaninFloat's representation, wrapping around if necessary.
+
+5.3 Comparison functions of two KaninFloat value arguments
+
+This encoding ensures that when the complete bit pattern is interpreted as a signed integer, the ordering is monotonically consistent with the KaninFloat value, so there is no need for separate machine-level instructions.
+The representation of NaN coincides with the most negative signed integer, so if KaninFloat is real, compareLess(NaN, KaninFloat) returns True, etc.
+
+compareEqual(KaninFloat1, KaninFloat2) returns True if KaninFloat1 = KaninFloat2, else False.
+compareNotEqual(KaninFloat1, KaninFloat2) returns True if KaninFloat1 /= KaninFloat2, else False.
+compareGreater(KaninFloat1, KaninFloat2) returns True if KaninFloat1 > KaninFloat2, else False.
+compareGreaterEqual(KaninFloat1, KaninFloat2) returns True if KaninFloat1 >= KaninFloat2, else False.
+compareLess(KaninFloat1, KaninFloat2) returns True if KaninFloat1 < KaninFloat2, else False.
+compareLessEqual(KaninFloat1, KaninFloat2) returns True if KaninFloat1 <= KaninFloat2, else False.
+
+5.4 Arithmetic function of two KaninFloat value arguments
+
+add(KaninFloat1, KaninFloat2) return KaninFloat1 + KaninFloat2, rounded.
+sub(KaninFloat1, KaninFloat2) return KaninFloat1 - KaninFloat2, rounded.
+mul(KaninFloat1, KaninFloat2) return KaninFloat1 * KaninFloat2, rounded.
+div(KaninFloat1, KaninFloat2) return KaninFloat1 / KaninFloat2, rounded. Division by zero returns NaN.
+copySign(KaninFloat1, KaninFloat2) return negate(KaninFloat1) if KaninFloat2 < 0, else KaninFloat1
+
+5.5 Fused Arithmetic function of three KaninFloat value arguments
+
+fMA(KaninFloat1, KaninFloat2, KaninFloat3) return KaninFloat1 * KaninFloat2 + KaninFloat3, rounded. fMA may differ from a mul operation followed by an add operation.
+
+
+6. Conversions
+
+6.1 Conversion between different precision
+
+Converting a KaninFloat value to higher precision is exact, Conversion to a lower precision is rounded (See 4.1).
+
+6.2 Integer Conversion
+
+6.2.1 Integer to KaninFloat
+
+If the integer's representation is MSB = 1 and all other bits 0, it converts to NaN; Otherwise, The integer is converted to its exact real value, then rounded. 
+
+6.2.2 KaninFloat to Integer
+
+The KaninFloat value is rounded to integer.If the rounded value is out of range or the value is NaN,  the returned integer's representation is MSB = 1 and all other bits 0.
+
+
+7. Compliance
+An implementation is conforming if it:
+a) Correctly encodes and decodes any basic formats in Section 3.
+b) Implements all operations in Section 5 with exact intermediate results followed by compliant rounding.
+c) Provides reproducible results across identical inputs.
+
+
+
+Appendix A. Implementation Note
+
+Note 0: Although This work is inspired by IEEE 754 and Posit, KaninFloat is NOT IEEE 754/Posit compatible. For Example, there is no -0.0 or infinite values, and only one NaN.
+
+Note 1: This encoding ensures that when the complete bit pattern is interpreted as a signed integer, the ordering is monotonically consistent with the KaninFloat value. 
+Comparison, negation and absolute value operations may directly reuse signed integer comparison, negation and absolute value hardware.
+
+Note 2: Arithmetic units shall normalize the exponent field to a common bias before alignment. This requires a bitwise inversion for negative KaninFloat.
+
+Note 3: For internal arithmetic operations, the stored mantissa M shall be extended to a (P+2)-bit signed fixed-point representation by prepending a 2-bit prefix according to the sign and exponent classification:
+- Positive Normal (S=0, E/=0):   Prepend `01`
+- Positive Subnormal (S=0, E=0): Prepend `00`
+- Negative Normal (S=1, E/=0):   Prepend `10`
+- Negative Subnormal (S=1, E=0): Prepend `11`
+
+The resulting (P+2)-bit value is interpreted as a two's complement fixed-point number with the binary point immediately after the most significant bit. This representation covers the range [-2, 2) and enables all addition and subtraction operations to be performed by a single signed integer adder or multiplier without sign-magnitude conversion.
+
+Note: This unpacking is strictly an internal ALU representation. It does not alter the storage format defined in Section 3.3, nor does it affect the monotonic bit-ordering property used for comparison.
+
+
+Appendix B. Example: 4-bit KaninFloat
+
+For 4-bit KaninFloat, W = 2 and P = 1.
+
+|KaninFloat|Value|
+------------------
+|      0000|  0.0|
+|      0001| 0.25|
+|      0010|  0.5|
+|      0011| 0.75|
+|      0100|  1.0|
+|      0101|  1.5|
+|      0110|  2.0|
+|      0111|  3.0|
+|      1000|  NaN|
+|      1001| -3.0|
+|      1010| -2.0|
+|      1011| -1.5|
+|      1100| -1.0|
+|      1101|-0.75|
+|      1110| -0.5|
+|      1111|-0.25|
+------------------
